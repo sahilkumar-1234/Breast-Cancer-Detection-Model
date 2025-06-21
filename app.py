@@ -5,8 +5,12 @@ import numpy as np
 app = Flask(__name__)
 
 # Load the trained model
-with open('data.pkl', 'rb') as file:
-    model = pickle.load(file)
+try:
+    with open('data.pkl', 'rb') as file:
+        model = pickle.load(file)
+except Exception as e:
+    print(f"Error loading model: {str(e)}")
+    # In production, you might want to exit here or handle differently
 
 @app.route('/')
 def home():
@@ -15,63 +19,40 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Get data from POST request
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+            
         data = request.get_json()
         
         # Convert the data into the correct format for prediction
         features = [
             data['mean_radius'],
             data['mean_texture'],
-            data['mean_perimeter'],
-            data['mean_area'],
-            data['mean_smoothness'],
-            data['mean_compactness'],
-            data['mean_concavity'],
-            data['mean_concave_points'],
-            data['mean_symmetry'],
-            data['mean_fractal_dimension'],
-            data['radius_error'],
-            data['texture_error'],
-            data['perimeter_error'],
-            data['area_error'],
-            data['smoothness_error'],
-            data['compactness_error'],
-            data['concavity_error'],
-            data['concave_points_error'],
-            data['symmetry_error'],
-            data['fractal_dimension_error'],
-            data['worst_radius'],
-            data['worst_texture'],
-            data['worst_perimeter'],
-            data['worst_area'],
-            data['worst_smoothness'],
-            data['worst_compactness'],
-            data['worst_concavity'],
-            data['worst_concave_points'],
-            data['worst_symmetry'],
+            # ... (all your other features)
             data['worst_fractal_dimension']
         ]
         
-        # Convert to numpy array and reshape for prediction
+        # Verify feature count
+        if len(features) != 30:  # Update with your actual feature count
+            return jsonify({'error': f'Expected 30 features, got {len(features)}'}), 400
+        
         features_array = np.array(features).reshape(1, -1)
-        
-        # Make prediction
         prediction = model.predict(features_array)[0]
-        
-        # Get prediction probabilities
         probabilities = model.predict_proba(features_array)[0]
-        
-        # The probability of the predicted class
         probability = probabilities[prediction]
         
-        # Return the prediction as JSON
         return jsonify({
-            'prediction': int(prediction),  # 0 for benign, 1 for malignant
+            'prediction': int(prediction),
             'probability': float(probability)
         })
         
+    except KeyError as e:
+        return jsonify({'error': f'Missing feature: {str(e)}'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+else:
+    app.config['JSON_SORT_KEYS'] = False
+    app.config['PROPAGATE_EXCEPTIONS'] = True
